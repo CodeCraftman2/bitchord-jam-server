@@ -14,38 +14,59 @@ curl localhost:8000/healthz
 python tools/jam_probe.py http://localhost:8000   # smoke-test a running server
 ```
 
-## Deploy (pick one)
+## Get your own server link (Fly.io, step by step)
 
-### Fly.io (Dockerfile)
-```bash
-cp fly.toml.example fly.toml      # fly.toml is git-ignored — keep it local
-# edit `app` to a unique name, and primary_region to the closest one
-fly launch --no-deploy --copy-config
-fly deploy
-```
-Your server is `https://<app>.fly.dev`. Keep exactly **1 machine** — parties live in memory.
+You will end up with a link like `https://my-jam.fly.dev`. Fly needs a card on
+signup; this tiny server fits in a very small machine.
 
-### Render
-Use `render.yaml` (New → Blueprint), or a Web Service with build `go build -o server .`,
-start `./server`, health check `/healthz`, 1 instance.
+1. **Install the Fly CLI and log in** (Windows PowerShell shown):
+   ```powershell
+   iwr https://fly.io/install.ps1 -useb | iex
+   fly auth signup      # or: fly auth login
+   ```
+   macOS/Linux: `curl -L https://fly.io/install.sh | sh`
+2. **Get this repo:**
+   ```bash
+   git clone https://github.com/CodeCraftman2/bitchord-jam-server
+   cd bitchord-jam-server
+   ```
+3. **Create your config.** The app name becomes your link, so it must be unique
+   across Fly and is public once you share the link:
+   ```bash
+   cp fly.toml.example fly.toml
+   ```
+   Open `fly.toml` and change `app = "..."` to e.g. `my-jam-1234`. Optionally
+   change `primary_region` (`fly platform regions` lists them; `bom` = Mumbai).
+4. **Create the app and deploy:**
+   ```bash
+   fly apps create my-jam-1234      # same name as in fly.toml
+   fly deploy
+   fly scale count 1                # parties live in memory: keep ONE machine
+   ```
+5. **Check it works.** Your link is `https://my-jam-1234.fly.dev`:
+   ```bash
+   curl https://my-jam-1234.fly.dev/healthz
+   ```
+   It should answer OK. (`fly status` and `fly logs` help if it doesn't.)
+6. **Use it in the BitChord app.** Easiest: open **Listen Together**, type your
+   link into the **server address box**, and start a party. No rebuild needed;
+   the app remembers it. To bake it into your own build instead, add this line to
+   BitChord's `local.properties`:
+   ```
+   LISTEN_TOGETHER_SERVER=https://my-jam-1234.fly.dev
+   ```
+7. **Update later:** pull changes and run `fly deploy` again. To remove
+   everything: `fly apps destroy my-jam-1234` (this takes the link down).
 
-### Any Ubuntu VM (Oracle Always Free, etc.)
-Point a DNS A record at the VM, then:
-```bash
-sudo DOMAIN=jam.example.com bash deploy/setup.sh
-```
-Installs Go, a systemd service and Caddy (automatic HTTPS + WebSocket proxy).
+## Other hosts
 
-### Docker
-```bash
-docker build -t jam-server . && docker run -p 8000:8000 -e JAM_TRUST_PROXY=false jam-server
-```
-
-## Connecting the app
-Build BitChord with your URL, e.g. in its `local.properties`:
-```
-LISTEN_TOGETHER_SERVER=https://<your-host>
-```
+- **Render:** New, Blueprint, pick this repo (`render.yaml`). Link:
+  `https://<service>.onrender.com`. The free plan sleeps when idle.
+- **Any Ubuntu VM** (Oracle Always Free etc.): point a DNS A record at the VM, then
+  `sudo DOMAIN=jam.example.com bash deploy/setup.sh` (installs Go, systemd, and
+  Caddy for automatic HTTPS + WebSockets).
+- **Docker:** `docker build -t jam-server . && docker run -p 8000:8000 jam-server`
+- **Local test only:** `go run .` then `curl localhost:8000/healthz`
 
 ## Is it safe? Does it expose my URL?
 - **This repo contains no real URL, token or key.** `fly.toml` (your app name =
